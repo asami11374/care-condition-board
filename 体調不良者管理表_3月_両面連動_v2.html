@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>体調不良者管理表（3月・両面連動 v2 改善版）</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --panel: #fff;
+      --ink: #1a2a3f;
+      --line: #7e8ea6;
+      --line-strong: #334a6b;
+      --head: #dfe8f6;
+      --sticky: #f6f9ff;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Yu Gothic", "Meiryo", sans-serif; }
+    .app { max-width: 1900px; margin: 0 auto; padding: 10px; }
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .title { margin: 0; font-size: 1.06rem; }
+    .button-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    button, .file-label { border: 2px solid var(--line-strong); background: #fff; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+    .primary { background: #21426e; color: #fff; }
+    .warn { background: #fff4e9; }
+    .panel { background: var(--panel); border: 2px solid var(--line-strong); padding: 8px; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+    .tab.active { background: #21426e; color: #fff; }
+    .hidden { display: none !important; }
+
+    .legend { display: flex; gap: 8px; margin-bottom: 8px; font-size: 0.8rem; flex-wrap: wrap; }
+    .chip { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+    .auto { background: #e9f2ff; }
+    .manual { background: #fff5e6; }
+
+    .calendar-wrap { overflow: auto; border: 3px solid var(--line-strong); }
+    table { border-collapse: collapse; width: max-content; min-width: 100%; }
+    .calendar th, .calendar td { border: 2px solid var(--line); padding: 4px 6px; font-size: 0.82rem; background: #fff; }
+    .calendar th { background: var(--head); text-align: center; border-bottom: 3px solid var(--line-strong); white-space: nowrap; }
+    .calendar thead th { position: sticky; top: 0; z-index: 4; }
+
+    .left-sticky { position: sticky; left: 0; z-index: 3; background: var(--sticky); border-right: 3px solid var(--line-strong) !important; }
+    .left-sticky.room { left: 124px; min-width: 95px; }
+    .left-sticky.item { left: 219px; min-width: 95px; }
+
+    .right-sticky { position: sticky; right: 0; z-index: 3; background: #f8fbff; border-left: 3px solid var(--line-strong) !important; min-width: 88px; }
+    .right-sticky.r1 { right: 352px; }
+    .right-sticky.r2 { right: 264px; }
+    .right-sticky.r3 { right: 176px; }
+    .right-sticky.r4 { right: 88px; }
+    .right-sticky.r5 { right: 0; }
+
+    .resident-start td { border-top: 3px solid var(--line-strong); }
+    .resident-end td { border-bottom: 3px solid var(--line-strong); }
+    .item-label { font-weight: 700; background: #eef4ff; }
+
+    .day-cell { min-width: 62px; text-align: center; cursor: pointer; }
+    .status-fever { background: #ffe8eb !important; }
+    .status-symptom { background: #fff6e6 !important; }
+    .status-treatment { background: #e9f8ef !important; }
+    .status-observe { background: #edf3ff !important; }
+    .status-cleared { background: #eef9f0 !important; }
+    .status-closed { background: #ececec !important; }
+
+    .small-note { display: block; font-size: 0.7rem; color: #3f4f64; }
+    .temp { font-weight: 700; }
+
+    .back-wrap { overflow: auto; border: 3px solid var(--line-strong); }
+    .back-table th, .back-table td { border: 2px solid var(--line); padding: 4px; font-size: 0.82rem; }
+    .back-table th { background: var(--head); position: sticky; top: 0; z-index: 2; }
+    .back-table .mode-auto { background: #edf4ff; }
+    .back-table .mode-manual { background: #fff6ea; }
+    .cell-input, .cell-textarea { width: 100%; border: 1px solid #9cacbf; border-radius: 3px; padding: 4px; font: inherit; }
+    .cell-textarea { min-height: 56px; }
+
+    dialog { border: 2px solid var(--line-strong); border-radius: 6px; width: min(460px, 95vw); }
+    .modal-grid { display: grid; gap: 8px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="toolbar">
+      <h1 class="title">体調不良者管理表（2026年3月） 表面/裏面 連動版（v2ベース改善）</h1>
+      <div class="button-row">
+        <button id="saveBtn" class="primary">保存</button>
+        <button id="exportJsonBtn">JSON出力</button>
+        <label class="file-label">JSON取込<input id="importJsonInput" type="file" accept="application/json" class="hidden"></label>
+        <button id="resetBtn" class="warn">初期化</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="tabs">
+        <button class="tab active" data-tab="front">表面（カレンダー）</button>
+        <button class="tab" data-tab="back">裏面（実務一覧）</button>
+      </div>
+
+      <div id="frontPanel">
+        <div class="legend">
+          <span class="chip auto">自動反映: onset_date / daily_course / date / temperature_c / symptoms_present / symptoms</span>
+          <span class="chip manual">手入力: testResult / treatment / mealWater / vitalsFinding / familyContact / consultation / progressNext</span>
+        </div>
+        <div class="calendar-wrap"><table id="calendarTable" class="calendar"></table></div>
+      </div>
+
+      <div id="backPanel" class="hidden">
+        <div class="back-wrap"><table id="backTable" class="back-table"></table></div>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="dayDialog">
+    <form method="dialog" class="modal-grid" id="dayForm">
+      <strong id="dayDialogTitle">日次入力</strong>
+      <label>状態
+        <select name="status">
+          <option value="">なし</option>
+          <option value="fever">発熱</option>
+          <option value="symptom">症状あり</option>
+          <option value="treatment">治療</option>
+          <option value="observe">経過観察</option>
+          <option value="cleared">開放</option>
+          <option value="closed">終結</option>
+        </select>
+      </label>
+      <label>メモ<input name="note" maxlength="30"></label>
+      <div class="button-row" style="justify-content:flex-end;">
+        <button value="cancel">取消</button>
+        <button value="save" class="primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const STORAGE_KEY = 'care-condition-board-v2-enhanced';
+    const AUTO_FIELDS = ['onset_date', 'daily_course', 'date', 'temperature_c', 'symptoms_present', 'symptoms'];
+    const MANUAL_FIELDS = ['testResult', 'treatment', 'mealWater', 'vitalsFinding', 'familyContact', 'consultation', 'progressNext'];
+
+    const state = {
+      meta: { year: 2026, month: 3, displayRange: ['2026-03-01', '2026-03-31'] },
+      residents: []
+    };
+
+    const STRUCTURED_TEXT_SOURCE = [
+      { name: '安齋', room: '201', wing: '2階東', priority: '高', onset_date: '2026-03-20', daily_course: [
+        { date: '2026-03-20', temperature_c: 38.1, symptoms_present: true, symptoms: '咽頭痛、倦怠感', status: 'fever' },
+        { date: '2026-03-21', temperature_c: 37.8, symptoms_present: true, symptoms: '咳、食欲低下', status: 'symptom' },
+        { date: '2026-03-22', temperature_c: 37.4, symptoms_present: true, symptoms: '咳持続', status: 'observe' },
+        { date: '2026-03-23', temperature_c: 37.1, symptoms_present: false, symptoms: '全身状態安定', status: 'cleared' }
+      ]},
+      { name: '有福', room: '202', wing: '2階西', priority: '中', onset_date: '2026-03-21', daily_course: [
+        { date: '2026-03-21', temperature_c: 37.9, symptoms_present: true, symptoms: '微熱、鼻汁', status: 'fever' },
+        { date: '2026-03-22', temperature_c: 37.3, symptoms_present: true, symptoms: '鼻汁、軽度咳嗽', status: 'symptom' },
+        { date: '2026-03-23', temperature_c: 36.9, symptoms_present: true, symptoms: '軽咳', status: 'observe' },
+        { date: '2026-03-24', temperature_c: 36.7, symptoms_present: false, symptoms: '症状ほぼ消失', status: 'cleared' }
+      ]},
+      { name: '健康', room: '203', wing: '2階東', priority: '中', onset_date: '2026-03-19', daily_course: [
+        { date: '2026-03-19', temperature_c: 38.4, symptoms_present: true, symptoms: '発熱、喀痰', status: 'fever' },
+        { date: '2026-03-20', temperature_c: 37.9, symptoms_present: true, symptoms: '喀痰増加', status: 'treatment' },
+        { date: '2026-03-21', temperature_c: 37.5, symptoms_present: true, symptoms: '咳嗽', status: 'observe' },
+        { date: '2026-03-23', temperature_c: 36.8, symptoms_present: false, symptoms: '呼吸状態改善', status: 'cleared' }
+      ]},
+      { name: '恋', room: '205', wing: '2階西', priority: '低', onset_date: '2026-03-22', daily_course: [
+        { date: '2026-03-22', temperature_c: 37.6, symptoms_present: true, symptoms: '微熱、頭痛', status: 'fever' },
+        { date: '2026-03-23', temperature_c: 37.2, symptoms_present: true, symptoms: '頭痛軽減', status: 'symptom' },
+        { date: '2026-03-24', temperature_c: 36.8, symptoms_present: false, symptoms: '症状なし', status: 'cleared' },
+        { date: '2026-03-25', temperature_c: 36.6, symptoms_present: false, symptoms: '終結判定', status: 'closed' }
+      ]},
+      { name: 'ミツオカ', room: '206', wing: '2階東', priority: '高', onset_date: '2026-03-23', daily_course: [
+        { date: '2026-03-23', temperature_c: 38.3, symptoms_present: true, symptoms: '悪寒、咽頭痛', status: 'fever' },
+        { date: '2026-03-24', temperature_c: 38.0, symptoms_present: true, symptoms: '咽頭痛持続', status: 'treatment' },
+        { date: '2026-03-25', temperature_c: 37.5, symptoms_present: true, symptoms: '咳出現', status: 'observe' },
+        { date: '2026-03-26', temperature_c: 37.1, symptoms_present: true, symptoms: '軽咳', status: 'symptom' }
+      ]},
+      { name: 'せいの', room: '207', wing: '2階西', priority: '中', onset_date: '2026-03-20', daily_course: [
+        { date: '2026-03-20', temperature_c: 38.0, symptoms_present: true, symptoms: '発熱、関節痛', status: 'fever' },
+        { date: '2026-03-21', temperature_c: 37.7, symptoms_present: true, symptoms: '関節痛持続', status: 'symptom' },
+        { date: '2026-03-22', temperature_c: 37.3, symptoms_present: true, symptoms: '倦怠感', status: 'observe' },
+        { date: '2026-03-24', temperature_c: 36.9, symptoms_present: false, symptoms: '食事摂取改善', status: 'cleared' }
+      ]}
+    ];
+
+    function getWeekdayJa(isoDate) {
+      const [y, m, d] = isoDate.split('-').map(Number);
+      const weekday = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay();
+      return ['日', '月', '火', '水', '木', '金', '土'][weekday];
+    }
+
+    function buildDateList(startIso, endIso) {
+      const list = [];
+      const start = new Date(startIso + 'T00:00:00Z');
+      const end = new Date(endIso + 'T00:00:00Z');
+      for (let t = start.getTime(); t <= end.getTime(); t += 86400000) {
+        const dt = new Date(t);
+        const y = dt.getUTCFullYear();
+        const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(dt.getUTCDate()).padStart(2, '0');
+        const iso = `${y}-${m}-${d}`;
+        list.push({ iso, label: `${m}/${d}`, weekday: getWeekdayJa(iso) });
+      }
+      return list;
+    }
+    const dateList = buildDateList(state.meta.displayRange[0], state.meta.displayRange[1]);
+
+    function normalizeResidents(source) {
+      return source.map(person => {
+        const sorted = [...person.daily_course].sort((a, b) => a.date.localeCompare(b.date));
+        const calendar = {};
+        sorted.forEach(entry => {
+          calendar[entry.date] = {
+            status: entry.status || (entry.symptoms_present ? 'symptom' : 'observe'),
+            temperature_c: entry.temperature_c,
+            symptoms_present: entry.symptoms_present,
+            symptoms: entry.symptoms,
+            note: entry.symptoms || ''
+          };
+        });
+
+        const planned = addDays(person.onset_date, 5);
+        const releaseDay = sorted.find(e => e.status === 'cleared' || e.status === 'closed')?.date || '';
+        return {
+          id: crypto.randomUUID(),
+          name: person.name,
+          room: person.room,
+          wing: person.wing,
+          priority: person.priority,
+          onset_date: person.onset_date,
+          symptoms: sorted.map(e => e.symptoms).filter(Boolean).join('、'),
+          daily_course: sorted,
+          testResult: '', treatment: '', mealWater: '', vitalsFinding: '', familyContact: '', consultation: '', progressNext: '',
+          releasePlanned: planned,
+          releaseDate: releaseDay,
+          progress: releaseDay ? '開放判断済' : '経過観察中',
+          calendar
+        };
+      });
+    }
+
+    function addDays(iso, days) {
+      const dt = new Date(iso + 'T00:00:00Z');
+      dt.setUTCDate(dt.getUTCDate() + days);
+      const y = dt.getUTCFullYear();
+      const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(dt.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function calcRemaining(planned, released) {
+      if (released) return 0;
+      const today = new Date('2026-03-29T00:00:00Z');
+      const plan = new Date(planned + 'T00:00:00Z');
+      return Math.ceil((plan.getTime() - today.getTime()) / 86400000);
+    }
+
+    function loadState() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) { state.residents = normalizeResidents(STRUCTURED_TEXT_SOURCE); return; }
+      try {
+        const parsed = JSON.parse(raw);
+        state.residents = Array.isArray(parsed.residents) ? parsed.residents : normalizeResidents(STRUCTURED_TEXT_SOURCE);
+      } catch { state.residents = normalizeResidents(STRUCTURED_TEXT_SOURCE); }
+    }
+
+    function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+    function statusShort(status) {
+      return ({ fever: '発熱', symptom: '症状', treatment: '治療', observe: '観察', cleared: '開放', closed: '終結' }[status] || '');
+    }
+
+    function renderCalendar() {
+      const table = document.getElementById('calendarTable');
+      const headDates = dateList.map(d => `<th>${d.label}<br>${d.weekday}</th>`).join('');
+      const rightHead = ['発症日', '開放予定', '開放日', 'あと', '経過'].map((h, i) => `<th class="right-sticky r${i+1}">${h}</th>`).join('');
+
+      let html = `<thead><tr>
+        <th class="left-sticky">氏名</th>
+        <th class="left-sticky room">居室/棟</th>
+        <th class="left-sticky item">項目</th>
+        ${headDates}
+        ${rightHead}
+      </tr></thead><tbody>`;
+
+      const rowDefs = [
+        ['状況', (r, d) => statusShort(r.calendar?.[d]?.status || ''), true],
+        ['体温', (r, d) => Number.isFinite(r.calendar?.[d]?.temperature_c) ? `${r.calendar[d].temperature_c.toFixed(1)}℃` : '', false],
+        ['治療', (r, d) => r.treatment || '', false],
+        ['検査', (r, d) => r.testResult || '', false]
+      ];
+
+      state.residents.forEach(resident => {
+        rowDefs.forEach(([label, cellFn, statusRow], idx) => {
+          html += `<tr class="${idx === 0 ? 'resident-start' : ''} ${idx === rowDefs.length - 1 ? 'resident-end' : ''}">`;
+          if (idx === 0) {
+            html += `<td class="left-sticky" rowspan="4">${resident.name}<br><span class="small-note">優先:${resident.priority}</span></td>`;
+            html += `<td class="left-sticky room" rowspan="4">${resident.room}<br>${resident.wing}</td>`;
+          }
+          html += `<td class="left-sticky item item-label">${label}</td>`;
+
+          dateList.forEach(d => {
+            const entry = resident.calendar?.[d.iso] || {};
+            const cls = statusRow && entry.status ? `status-${entry.status}` : '';
+            const content = cellFn(resident, d.iso);
+            const note = statusRow && entry.symptoms ? `<span class="small-note">${escapeHtml(entry.symptoms).slice(0, 18)}</span>` : '';
+            html += `<td class="day-cell ${cls}" data-id="${resident.id}" data-date="${d.iso}" data-row="${idx}">${escapeHtml(content)}${note}</td>`;
+          });
+
+          if (idx === 0) {
+            const remain = calcRemaining(resident.releasePlanned, resident.releaseDate);
+            html += `<td class="right-sticky r1" rowspan="4">${resident.onset_date}</td>`;
+            html += `<td class="right-sticky r2" rowspan="4">${resident.releasePlanned || ''}</td>`;
+            html += `<td class="right-sticky r3" rowspan="4">${resident.releaseDate || ''}</td>`;
+            html += `<td class="right-sticky r4" rowspan="4">${remain}</td>`;
+            html += `<td class="right-sticky r5" rowspan="4">${resident.progress || ''}</td>`;
+          }
+          html += `</tr>`;
+        });
+      });
+
+      html += '</tbody>';
+      table.innerHTML = html;
+    }
+
+    function renderBackTable() {
+      const headers = [
+        ['name', '氏名', 'auto'], ['room', '居室', 'auto'], ['wing', '2階東西', 'auto'], ['priority', '優先', 'auto'],
+        ['onset_date', '発症日', 'auto'], ['symptoms', '症状', 'auto'],
+        ['testResult', '検査結果', 'manual'], ['treatment', '治療', 'manual'], ['mealWater', '食事・水分', 'manual'],
+        ['vitalsFinding', 'バイタル・所見', 'manual'], ['familyContact', '家族連絡', 'manual'], ['consultation', '受診', 'manual'], ['progressNext', '経過・次対応', 'manual']
+      ];
+
+      let html = '<thead><tr>' + headers.map(([,l,m]) => `<th class="mode-${m}">${l}<br><span class="small-note">${m==='auto'?'自動':'手入力'}</span></th>`).join('') + '</tr></thead><tbody>';
+      state.residents.forEach(r => {
+        html += '<tr>' + headers.map(([key, , mode]) => `<td>${editableCell(r, key, mode)}</td>`).join('') + '</tr>';
+      });
+      html += '</tbody>';
+      document.getElementById('backTable').innerHTML = html;
+    }
+
+    function editableCell(r, key, mode) {
+      const v = escapeHtml(r[key] || '');
+      if (mode === 'auto') return `<input class="cell-input mode-auto" value="${v}" readonly>`;
+      return `<textarea class="cell-textarea mode-manual" data-id="${r.id}" data-key="${key}" placeholder="手入力">${v}</textarea>`;
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    function renderAll() { renderCalendar(); renderBackTable(); }
+
+    function bindEvents() {
+      document.querySelectorAll('.tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          btn.classList.add('active');
+          const tab = btn.dataset.tab;
+          document.getElementById('frontPanel').classList.toggle('hidden', tab !== 'front');
+          document.getElementById('backPanel').classList.toggle('hidden', tab !== 'back');
+        });
+      });
+
+      document.getElementById('backTable').addEventListener('input', e => {
+        const id = e.target.dataset.id;
+        const key = e.target.dataset.key;
+        if (!id || !key || !MANUAL_FIELDS.includes(key)) return;
+        const r = state.residents.find(x => x.id === id);
+        if (!r) return;
+        r[key] = e.target.value;
+        saveState();
+        renderCalendar();
+      });
+
+      document.getElementById('calendarTable').addEventListener('click', async e => {
+        const cell = e.target.closest('.day-cell');
+        if (!cell || cell.dataset.row !== '0') return;
+        const resident = state.residents.find(r => r.id === cell.dataset.id);
+        if (!resident) return;
+        const date = cell.dataset.date;
+        const current = resident.calendar?.[date] || {};
+
+        const dialog = document.getElementById('dayDialog');
+        const form = document.getElementById('dayForm');
+        document.getElementById('dayDialogTitle').textContent = `${resident.name} / ${date} (${getWeekdayJa(date)})`;
+        form.status.value = current.status || '';
+        form.note.value = current.note || '';
+        dialog.showModal();
+
+        const result = await new Promise(resolve => dialog.addEventListener('close', () => resolve(dialog.returnValue), { once: true }));
+        if (result !== 'save') return;
+
+        const status = form.status.value;
+        const note = form.note.value.trim();
+        if (!resident.calendar) resident.calendar = {};
+        if (!status && !note) {
+          delete resident.calendar[date];
+        } else {
+          const old = resident.calendar[date] || {};
+          resident.calendar[date] = { ...old, status, note };
+        }
+
+        if (status === 'cleared' || status === 'closed') {
+          resident.releaseDate = date;
+          resident.progress = '開放判断済';
+        }
+
+        saveState();
+        renderAll();
+      });
+
+      document.getElementById('saveBtn').addEventListener('click', () => { saveState(); alert('保存しました。'); });
+      document.getElementById('resetBtn').addEventListener('click', () => {
+        if (!confirm('入力を初期化しますか？')) return;
+        localStorage.removeItem(STORAGE_KEY);
+        state.residents = normalizeResidents(STRUCTURED_TEXT_SOURCE);
+        renderAll();
+      });
+
+      document.getElementById('exportJsonBtn').addEventListener('click', () => {
+        downloadFile('care-condition-board-v2-enhanced.json', JSON.stringify(state, null, 2), 'application/json');
+      });
+
+      document.getElementById('importJsonInput').addEventListener('change', async e => {
+        const f = e.target.files[0];
+        if (!f) return;
+        try {
+          const parsed = JSON.parse(await f.text());
+          if (!Array.isArray(parsed.residents)) throw new Error('invalid');
+          state.residents = parsed.residents;
+          saveState();
+          renderAll();
+          alert('JSONを取り込みました。');
+        } catch {
+          alert('JSON形式が不正です。');
+        }
+        e.target.value = '';
+      });
+    }
+
+    function verifyMarch2026Weekdays() {
+      const expected = {
+        '2026-03-01':'日','2026-03-02':'月','2026-03-03':'火','2026-03-04':'水','2026-03-05':'木','2026-03-06':'金','2026-03-07':'土',
+        '2026-03-08':'日','2026-03-09':'月','2026-03-10':'火','2026-03-11':'水','2026-03-12':'木','2026-03-13':'金','2026-03-14':'土',
+        '2026-03-15':'日','2026-03-16':'月','2026-03-17':'火','2026-03-18':'水','2026-03-19':'木','2026-03-20':'金','2026-03-21':'土',
+        '2026-03-22':'日','2026-03-23':'月','2026-03-24':'火','2026-03-25':'水','2026-03-26':'木','2026-03-27':'金','2026-03-28':'土',
+        '2026-03-29':'日','2026-03-30':'月','2026-03-31':'火'
+      };
+      const mismatches = Object.entries(expected).filter(([d, w]) => getWeekdayJa(d) !== w);
+      if (mismatches.length) console.error('曜日不一致', mismatches);
+    }
+
+    function downloadFile(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    loadState();
+    renderAll();
+    bindEvents();
+    verifyMarch2026Weekdays();
+  </script>
+</body>
+</html>
