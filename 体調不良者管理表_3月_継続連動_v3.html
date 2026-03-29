@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>体調不良者管理表（3月・継続連動 v3）</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --ink: #13233b;
+      --muted: #5f6f84;
+      --line: #9aaac1;
+      --line-strong: #40597d;
+      --header: #17345a;
+      --accent: #1f67c5;
+      --danger: #be2933;
+      --warn: #b06a04;
+      --ok: #25623b;
+      --shadow: 0 8px 20px rgba(20, 41, 73, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    .app {
+      max-width: 1700px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 1.15rem;
+      letter-spacing: 0.03em;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    button, .file-label {
+      border: 1px solid var(--line-strong);
+      background: #fff;
+      color: var(--ink);
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    button.primary { background: var(--header); color: #fff; }
+    button.warn { background: #fff8ec; color: var(--warn); border-color: var(--warn); }
+    button:hover, .file-label:hover { filter: brightness(0.97); }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 10px;
+      margin-bottom: 12px;
+    }
+
+    .tabs { display: flex; gap: 8px; margin-bottom: 8px; }
+    .tab.active { background: var(--header); color: #fff; }
+
+    .hidden { display: none !important; }
+
+    .new-form {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(120px, 1fr));
+      gap: 8px;
+      align-items: end;
+      margin-bottom: 8px;
+    }
+    .field label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 6px;
+      font: inherit;
+      background: #fff;
+    }
+
+    .calendar-wrap {
+      overflow: auto;
+      border: 2px solid var(--line-strong);
+      border-radius: 4px;
+      background: #fff;
+    }
+
+    table { border-collapse: collapse; width: max-content; min-width: 100%; }
+
+    .calendar th, .calendar td {
+      border: 1px solid var(--line);
+      padding: 4px 6px;
+      vertical-align: middle;
+      font-size: 0.83rem;
+      background: #fff;
+    }
+
+    .calendar thead th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: #e9f0fb;
+      border-bottom: 2px solid var(--line-strong);
+      text-align: center;
+      min-width: 76px;
+    }
+
+    .sticky-col {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      min-width: 130px;
+      background: #f7faff !important;
+      border-right: 2px solid var(--line-strong) !important;
+    }
+    .sticky-col.room { left: 130px; min-width: 82px; }
+    .sticky-col.item { left: 212px; min-width: 130px; }
+
+    .resident-start td { border-top: 2px solid var(--line-strong); }
+    .resident-end td { border-bottom: 2px solid var(--line-strong); }
+
+    .item-label { font-weight: 700; color: #244872; background: #f1f6ff; }
+
+    .day-cell {
+      cursor: pointer;
+      min-height: 28px;
+      min-width: 76px;
+      text-align: center;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    .status-fever { background: #ffe8eb !important; color: #a21a2d; }
+    .status-test { background: #fff5e2 !important; color: #8e5702; }
+    .status-care { background: #e8f8ee !important; color: #1f6038; }
+    .status-watch { background: #edf3ff !important; color: #1c4d95; }
+    .status-end { background: #ececec !important; color: #545454; }
+
+    .calendar-note { font-weight: 400; font-size: 0.72rem; display: block; color: #36485f; }
+
+    .back-table-wrap { overflow: auto; border: 2px solid var(--line-strong); border-radius: 4px; }
+    .back-table th, .back-table td {
+      border: 1px solid var(--line);
+      padding: 4px;
+      font-size: 0.83rem;
+      vertical-align: top;
+      background: #fff;
+    }
+    .back-table th {
+      background: #e9f0fb;
+      border-bottom: 2px solid var(--line-strong);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      white-space: nowrap;
+    }
+
+    .cell-input, .cell-select, .cell-textarea {
+      width: 100%;
+      border: 1px solid #b4c0d2;
+      border-radius: 4px;
+      padding: 5px;
+      font: inherit;
+      min-width: 100px;
+      background: #fff;
+    }
+    .cell-textarea { min-height: 52px; resize: vertical; }
+
+    .priority-高 { color: var(--danger); font-weight: 700; }
+    .priority-中 { color: var(--warn); font-weight: 700; }
+    .priority-低 { color: var(--ok); font-weight: 700; }
+
+    .small { font-size: 0.78rem; color: var(--muted); }
+
+    dialog {
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      width: min(480px, 96vw);
+      box-shadow: var(--shadow);
+    }
+    .modal-grid { display: grid; gap: 8px; }
+
+    @media (max-width: 1200px) {
+      .new-form { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="toolbar">
+      <h1 class="title">体調不良者管理表（2026年3月） 表面＝カレンダー／裏面＝実務一覧</h1>
+      <div class="button-row">
+        <button id="saveBtn" class="primary">保存</button>
+        <button id="exportJsonBtn">JSON出力</button>
+        <label class="file-label">JSON取込<input id="importJsonInput" type="file" accept="application/json" class="hidden"></label>
+        <button id="exportCsvBtn">CSV出力</button>
+        <button id="resetBtn" class="warn">初期化</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="tabs">
+        <button class="tab active" data-tab="front">表面（カレンダー）</button>
+        <button class="tab" data-tab="back">裏面（実務一覧）</button>
+      </div>
+
+      <form id="newResidentForm" class="new-form" autocomplete="off">
+        <div class="field"><label>氏名 *</label><input required name="name"></div>
+        <div class="field"><label>部屋 *</label><input required name="room"></div>
+        <div class="field"><label>フロア *</label>
+          <select name="floor" required><option value="">選択</option><option>2F</option><option>3F</option><option>4F</option><option>5F</option></select>
+        </div>
+        <div class="field"><label>優先度 *</label>
+          <select name="priority" required><option value="">選択</option><option>高</option><option>中</option><option>低</option></select>
+        </div>
+        <div class="field"><label>把握日 *</label><input required name="catchDate" type="date"></div>
+        <div class="field"><label>主症状 *</label><input required name="mainSymptom"></div>
+        <div class="field"><button class="primary" type="submit">対象者を追加</button></div>
+      </form>
+
+      <div id="frontPanel">
+        <div class="small">日付セルをクリックすると、その日の状態（発熱・検査・対応など）を簡易入力できます。</div>
+        <div class="calendar-wrap"><table id="calendarTable" class="calendar"></table></div>
+      </div>
+
+      <div id="backPanel" class="hidden">
+        <div class="back-table-wrap"><table id="backTable" class="back-table"></table></div>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="dayDialog">
+    <form method="dialog" class="modal-grid" id="dayForm">
+      <strong id="dayDialogTitle">日次入力</strong>
+      <label>状態
+        <select name="status">
+          <option value="">なし</option>
+          <option value="fever">発熱</option>
+          <option value="test">検査</option>
+          <option value="care">処方・対応</option>
+          <option value="watch">観察中</option>
+          <option value="end">終了目安</option>
+        </select>
+      </label>
+      <label>短縮メモ（例: 37.8℃ / 抗原陰性）
+        <input name="note" maxlength="24">
+      </label>
+      <div class="button-row" style="justify-content:flex-end;">
+        <button value="cancel">取消</button>
+        <button value="save" class="primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const STORAGE_KEY = 'care-condition-board-v3';
+
+    /** 単一データ源 */
+    const state = {
+      meta: {
+        year: 2026,
+        month: 3,
+        displayRange: ['2026-03-19', '2026-04-01'],
+        timezone: 'Asia/Tokyo'
+      },
+      residents: []
+    };
+
+    // タイムゾーン依存回避のため、曜日計算はUTC基準で固定。
+    function getWeekdayJa(isoDate) {
+      const [y, m, d] = isoDate.split('-').map(Number);
+      const weekday = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay();
+      return ['日', '月', '火', '水', '木', '金', '土'][weekday];
+    }
+
+    function buildDateList(startIso, endIso) {
+      const list = [];
+      const start = new Date(startIso + 'T00:00:00Z');
+      const end = new Date(endIso + 'T00:00:00Z');
+      for (let t = start.getTime(); t <= end.getTime(); t += 24 * 60 * 60 * 1000) {
+        const dt = new Date(t);
+        const y = dt.getUTCFullYear();
+        const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(dt.getUTCDate()).padStart(2, '0');
+        const iso = `${y}-${m}-${d}`;
+        list.push({
+          iso,
+          label: `${m}/${d}`,
+          weekday: getWeekdayJa(iso)
+        });
+      }
+      return list;
+    }
+
+    const dateList = buildDateList(state.meta.displayRange[0], state.meta.displayRange[1]);
+
+    function createDefaultResidents() {
+      return [
+        {
+          id: crypto.randomUUID(),
+          name: '山田 花子',
+          room: '301',
+          floor: '3F',
+          priority: '中',
+          catchDate: '2026-03-20',
+          symptoms: '咳、微熱',
+          testResult: '03/21 抗原陰性',
+          treatment: '解熱剤頓用',
+          mealWater: '食事7割、水分800ml',
+          vitalsFinding: 'SpO2 97%',
+          familyContact: '03/20 娘へ連絡',
+          consultation: '未受診',
+          progressNext: '03/24再評価',
+          calendar: {
+            '2026-03-20': { status: 'fever', note: '37.8℃' },
+            '2026-03-21': { status: 'test', note: '抗原陰性' },
+            '2026-03-22': { status: 'watch', note: '咳残る' }
+          }
+        }
+      ];
+    }
+
+    function loadState() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        state.residents = createDefaultResidents();
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.residents)) {
+          state.meta = { ...state.meta, ...(parsed.meta || {}) };
+          state.residents = parsed.residents;
+        } else {
+          state.residents = createDefaultResidents();
+        }
+      } catch {
+        state.residents = createDefaultResidents();
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function renderAll() {
+      renderCalendar();
+      renderBackTable();
+    }
+
+    function renderCalendar() {
+      const table = document.getElementById('calendarTable');
+      const headDateCells = dateList.map(d => `<th>${d.label}<br>${d.weekday}</th>`).join('');
+      let html = `
+        <thead>
+          <tr>
+            <th class="sticky-col">氏名</th>
+            <th class="sticky-col room">居室</th>
+            <th class="sticky-col item">項目</th>
+            ${headDateCells}
+          </tr>
+        </thead>
+        <tbody>
+      `;
+
+      const rows = [
+        ['把握・発熱', r => `${r.catchDate || ''}`],
+        ['症状継続', r => r.symptoms || ''],
+        ['検査/結果', r => r.testResult || ''],
+        ['処方/終了目安', r => (r.treatment || '') + (r.progressNext ? ` / ${r.progressNext}` : '')]
+      ];
+
+      state.residents.forEach((resident, i) => {
+        rows.forEach(([label, summary], rowIdx) => {
+          html += `<tr class="${rowIdx === 0 ? 'resident-start' : ''} ${rowIdx === rows.length - 1 ? 'resident-end' : ''}">`;
+          if (rowIdx === 0) {
+            html += `<td class="sticky-col" rowspan="${rows.length}">${resident.name}<br><span class="priority-${resident.priority}">優先:${resident.priority}</span></td>`;
+            html += `<td class="sticky-col room" rowspan="${rows.length}">${resident.room}<br>${resident.floor}</td>`;
+          }
+          html += `<td class="sticky-col item item-label">${label}</td>`;
+
+          dateList.forEach(d => {
+            const e = resident.calendar?.[d.iso] || {};
+            const cls = e.status ? `status-${e.status}` : '';
+            const content = e.status ? `${statusShort(e.status)}<span class="calendar-note">${e.note || ''}</span>` : (rowIdx === 0 ? shortDateInfo(resident, d.iso, summary(resident)) : '');
+            html += `<td class="day-cell ${cls}" data-resident-id="${resident.id}" data-date="${d.iso}" data-row="${rowIdx}">${content}</td>`;
+          });
+          html += `</tr>`;
+        });
+      });
+
+      html += '</tbody>';
+      table.innerHTML = html;
+    }
+
+    function shortDateInfo(resident, iso, fallback = '') {
+      if (resident.catchDate === iso) return '把握';
+      return fallback ? '<span class="calendar-note">' + escapeHtml(fallback).slice(0, 18) + '</span>' : '';
+    }
+
+    function statusShort(status) {
+      return ({ fever: '発熱', test: '検査', care: '対応', watch: '観察', end: '終了' }[status] || '');
+    }
+
+    function renderBackTable() {
+      const headers = [
+        ['name', '氏名'], ['room', '部屋'], ['floor', 'フロア'], ['priority', '優先度'], ['catchDate', '把握日'],
+        ['symptoms', '症状'], ['testResult', '検査結果'], ['treatment', '処方・対応'], ['mealWater', '食事・水分'],
+        ['vitalsFinding', 'バイタル・所見'], ['familyContact', '家族連絡'], ['consultation', '受診'], ['progressNext', '経過・次対応']
+      ];
+
+      let html = '<thead><tr>' + headers.map(([, label]) => `<th>${label}</th>`).join('') + '<th>削除</th></tr></thead><tbody>';
+      state.residents.forEach(r => {
+        html += '<tr>' + headers.map(([key]) => `<td>${editableCell(r, key)}</td>`).join('') + `<td><button data-delete="${r.id}">削除</button></td></tr>`;
+      });
+      html += '</tbody>';
+      document.getElementById('backTable').innerHTML = html;
+    }
+
+    function editableCell(r, key) {
+      const value = escapeHtml(r[key] || '');
+      if (key === 'floor') {
+        return `<select class="cell-select" data-id="${r.id}" data-key="${key}">${['2F','3F','4F','5F'].map(v => `<option ${v === r[key] ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+      }
+      if (key === 'priority') {
+        return `<select class="cell-select" data-id="${r.id}" data-key="${key}">${['高','中','低'].map(v => `<option ${v === r[key] ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+      }
+      if (key === 'catchDate') {
+        return `<input class="cell-input" type="date" data-id="${r.id}" data-key="${key}" value="${value}">`;
+      }
+      if (['symptoms','testResult','treatment','mealWater','vitalsFinding','familyContact','consultation','progressNext'].includes(key)) {
+        return `<textarea class="cell-textarea" data-id="${r.id}" data-key="${key}">${value}</textarea>`;
+      }
+      return `<input class="cell-input" data-id="${r.id}" data-key="${key}" value="${value}">`;
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function bindEvents() {
+      document.querySelectorAll('.tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          btn.classList.add('active');
+          const tab = btn.dataset.tab;
+          document.getElementById('frontPanel').classList.toggle('hidden', tab !== 'front');
+          document.getElementById('backPanel').classList.toggle('hidden', tab !== 'back');
+        });
+      });
+
+      document.getElementById('newResidentForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const rec = {
+          id: crypto.randomUUID(),
+          name: String(fd.get('name') || '').trim(),
+          room: String(fd.get('room') || '').trim(),
+          floor: String(fd.get('floor') || ''),
+          priority: String(fd.get('priority') || ''),
+          catchDate: String(fd.get('catchDate') || ''),
+          symptoms: String(fd.get('mainSymptom') || ''),
+          testResult: '', treatment: '', mealWater: '', vitalsFinding: '', familyContact: '', consultation: '', progressNext: '',
+          calendar: {}
+        };
+
+        if (!rec.name || !rec.room || !rec.floor || !rec.priority || !rec.catchDate || !rec.symptoms) {
+          alert('必須項目を入力してください。');
+          return;
+        }
+
+        rec.calendar[rec.catchDate] = { status: 'watch', note: '把握' };
+        state.residents.push(rec);
+        saveState();
+        renderAll();
+        e.target.reset();
+      });
+
+      document.getElementById('backTable').addEventListener('input', (e) => {
+        const target = e.target;
+        const id = target.dataset.id;
+        const key = target.dataset.key;
+        if (!id || !key) return;
+        const rec = state.residents.find(x => x.id === id);
+        if (!rec) return;
+        rec[key] = target.value;
+        saveState();
+        renderCalendar();
+      });
+
+      document.getElementById('backTable').addEventListener('click', (e) => {
+        const id = e.target?.dataset?.delete;
+        if (!id) return;
+        if (!confirm('対象者を削除しますか？')) return;
+        state.residents = state.residents.filter(r => r.id !== id);
+        saveState();
+        renderAll();
+      });
+
+      document.getElementById('calendarTable').addEventListener('click', async (e) => {
+        const cell = e.target.closest('.day-cell');
+        if (!cell) return;
+        const residentId = cell.dataset.residentId;
+        const date = cell.dataset.date;
+        if (!residentId || !date) return;
+        const resident = state.residents.find(r => r.id === residentId);
+        if (!resident) return;
+
+        const dialog = document.getElementById('dayDialog');
+        const form = document.getElementById('dayForm');
+        const current = resident.calendar?.[date] || {};
+        document.getElementById('dayDialogTitle').textContent = `${resident.name} / ${date} (${getWeekdayJa(date)})`;
+        form.status.value = current.status || '';
+        form.note.value = current.note || '';
+        dialog.showModal();
+
+        const result = await new Promise(resolve => {
+          dialog.addEventListener('close', () => resolve(dialog.returnValue), { once: true });
+        });
+
+        if (result === 'save') {
+          const status = form.status.value;
+          const note = form.note.value.trim();
+          if (!resident.calendar) resident.calendar = {};
+          if (!status && !note) {
+            delete resident.calendar[date];
+          } else {
+            resident.calendar[date] = { status, note };
+          }
+          saveState();
+          renderAll();
+        }
+      });
+
+      document.getElementById('saveBtn').addEventListener('click', () => {
+        saveState();
+        alert('保存しました。');
+      });
+
+      document.getElementById('exportJsonBtn').addEventListener('click', () => {
+        downloadFile('care-condition-board-v3.json', JSON.stringify(state, null, 2), 'application/json');
+      });
+
+      document.getElementById('importJsonInput').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const text = await file.text();
+        try {
+          const parsed = JSON.parse(text);
+          if (!Array.isArray(parsed.residents)) throw new Error('Invalid format');
+          state.meta = { ...state.meta, ...(parsed.meta || {}) };
+          state.residents = parsed.residents;
+          saveState();
+          renderAll();
+          alert('JSONを取り込みました。');
+        } catch {
+          alert('JSON形式が不正です。');
+        }
+        e.target.value = '';
+      });
+
+      document.getElementById('exportCsvBtn').addEventListener('click', () => {
+        const header = ['氏名','部屋','フロア','優先度','把握日','症状','検査結果','処方・対応','食事・水分','バイタル・所見','家族連絡','受診','経過・次対応'];
+        const rows = state.residents.map(r => [r.name,r.room,r.floor,r.priority,r.catchDate,r.symptoms,r.testResult,r.treatment,r.mealWater,r.vitalsFinding,r.familyContact,r.consultation,r.progressNext]);
+        const csv = [header, ...rows].map(cols => cols.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+        downloadFile('care-condition-board-v3.csv', csv, 'text/csv');
+      });
+
+      document.getElementById('resetBtn').addEventListener('click', () => {
+        if (!confirm('入力内容を初期化します。よろしいですか？')) return;
+        localStorage.removeItem(STORAGE_KEY);
+        state.residents = createDefaultResidents();
+        renderAll();
+      });
+    }
+
+    function downloadFile(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function verifyMarch2026Weekdays() {
+      const expected = {
+        '2026-03-19': '木','2026-03-20': '金','2026-03-21': '土','2026-03-22': '日','2026-03-23': '月','2026-03-24': '火','2026-03-25': '水',
+        '2026-03-26': '木','2026-03-27': '金','2026-03-28': '土','2026-03-29': '日','2026-03-30': '月','2026-03-31': '火','2026-04-01': '水'
+      };
+      const mismatches = Object.entries(expected).filter(([d, w]) => getWeekdayJa(d) !== w);
+      if (mismatches.length) {
+        console.error('曜日不一致', mismatches);
+      }
+    }
+
+    loadState();
+    renderAll();
+    bindEvents();
+    verifyMarch2026Weekdays();
+  </script>
+</body>
+</html>
